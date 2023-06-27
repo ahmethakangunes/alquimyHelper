@@ -258,7 +258,7 @@ class MainWindow(QMainWindow):
             ctypes.windll.shell32.ShellExecuteW(None, "runas", "corNames.exe", None, None, 1)
 
     def runCheckLogsControl(self):
-        allProcesses = psutil.process_iter(attrs=['pid', 'name', 'create_time', 'memory_info'])
+        allProcesses = psutil.process_iter(attrs=['name'])
 
         runStatus = 0
 
@@ -274,7 +274,7 @@ class MainWindow(QMainWindow):
             self.stopCheckLogs()
 
     def closeEvent(self, event):
-        allProcesses = psutil.process_iter(attrs=['pid', 'name', 'create_time', 'memory_info'])
+        allProcesses = psutil.process_iter(attrs=['pid', 'name'])
 
         for process in allProcesses:
             processName = process.info['name']
