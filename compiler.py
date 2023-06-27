@@ -66,7 +66,7 @@ class ProgramCompiler:
             "--standalone",
             *["--include-data-file=" + file for file in includeDataFiles],
             "--output-dir=" + outputDir,
-            os.path.join(os.getcwd(), mainProgram)
+            mainProgram
         ]
 
         try:
