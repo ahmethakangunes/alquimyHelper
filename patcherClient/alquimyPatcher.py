@@ -1,7 +1,8 @@
 import os
+import sys
 import json
 import time
-import sys
+import psutil
 import hashlib
 import requests
 from colorama import init, Fore, Style
@@ -12,9 +13,9 @@ class Patcher:
     def __init__(self):
         self.headers = {'Content-type': 'application/json'}
         self.data = {
-            'username': 'xxxxx',
-            'password': 'xxxxx',
-            'version': '2.2',
+            'username': 'xxx',
+            'password': 'xxx',
+            'version': '2.3',
         }
 
     def calculateHash(self, filePath):
@@ -26,9 +27,21 @@ class Patcher:
                 chunk = file.read(4096)
         programHash = hashAlgorithm.hexdigest()
         return programHash
+    
+    def closeProgram(self, programName):
+        allProcesses = psutil.process_iter(attrs=['name', 'pid'])
+
+        for process in allProcesses:
+            processName = process.info['name']
+            processPid = process.info['pid']
+
+            if processName.lower() == f'{programName}.exe'.lower():
+                psutil.Process(processPid).terminate()
+
 
     def downloadFile(self, programName):
-        print(f'{Fore.RED}{programName} - Update available. Downloading...{Style.RESET_ALL}')
+        self.closeProgram(programName)
+    
         self.data['downloadProgramName'] = programName
         response = requests.post('http://xxx.xxx.xxx.xxx:2425/patcher', data=json.dumps(self.data), headers=self.headers, timeout=60, stream=True)
 
@@ -70,6 +83,7 @@ class Patcher:
                     if os.path.exists(serverProgramName):
                         localProgramHash = self.calculateHash(serverProgramName)
                         if serverProgramHash != localProgramHash:
+                            print(f'{Fore.RED}{serverProgramName} - Update available. Downloading...{Style.RESET_ALL}')
                             self.downloadFile(serverProgramName)
                         else:
                             print(f'{Fore.GREEN}{serverProgramName} - Current version is up to date.{Style.RESET_ALL}')
