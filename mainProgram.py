@@ -1,11 +1,13 @@
 import sys
-import subprocess
 import json
-import requests
+import time
 import ctypes
 import psutil
+import winreg
+import requests
+import threading
 from PyQt6.QtCore import QTimer
-from PyQt6.QtWidgets import QApplication, QMainWindow, QLabel, QPushButton, QVBoxLayout, QLineEdit, QHBoxLayout, QWidget, QMessageBox
+from PyQt6.QtWidgets import QApplication, QMainWindow, QPushButton, QVBoxLayout, QLineEdit, QHBoxLayout, QWidget, QMessageBox
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -13,6 +15,8 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("alquimy")
         self.layout = QVBoxLayout()
         self.setGeometry(100, 100, 500, 50)
+
+        self.reg = winreg.ConnectRegistry(None, winreg.HKEY_LOCAL_MACHINE)
 
         ###############################--TİMERS--################################
     
@@ -23,15 +27,18 @@ class MainWindow(QMainWindow):
         self.closeClientRemainingSecondsTimer.timeout.connect(self.updateCloseClientTimer)
 
         self.timerAlquimy = QTimer()
-        self.timerAlquimy.timeout.connect(self.runAlquimy)
+        self.timerAlquimy.timeout.connect(lambda: self.runExe('alquimyAutoStart.exe'))
 
         self.timerCloseClient = QTimer()
-        self.timerCloseClient.timeout.connect(self.runCloseClient)
+        self.timerCloseClient.timeout.connect(lambda: self.runExe('closeClient.exe'))
 
         self.timerCheckLogs = QTimer()
         self.timerCheckLogs.timeout.connect(self.runCheckLogsControl)
 
         ###############################--BUTTONS--###############################
+
+        self.resetAllSlotsButton = QPushButton("RESET ALL SLOTS WORKING STATUS", self)
+        self.resetAllSlotsButton.clicked.connect(lambda: self.resetAllSlotsButtonClicked(True))
 
         self.alquimyStartButton = QPushButton("Auto Start", self)
         self.alquimyStartButton.clicked.connect(self.startAlquimy)
@@ -65,6 +72,9 @@ class MainWindow(QMainWindow):
 
         ###############################--LAYOUTS--###############################
 
+        resetAllSlotButtonLayout = QHBoxLayout()
+        resetAllSlotButtonLayout.addWidget(self.resetAllSlotsButton)
+
         alquimyButtonLayout = QHBoxLayout()
         alquimyButtonLayout.addWidget(self.alquimyStartButton)
         alquimyButtonLayout.addWidget(self.alquimyMinutes)
@@ -82,6 +92,7 @@ class MainWindow(QMainWindow):
         otherProgramsLayout.addWidget(self.corNamesStartButton)
 
         mainLayout = QVBoxLayout()
+        mainLayout.addLayout(resetAllSlotButtonLayout)
         mainLayout.addLayout(alquimyButtonLayout)
         mainLayout.addLayout(closeClientLayout)
         mainLayout.addLayout(otherProgramsLayout)
@@ -96,6 +107,33 @@ class MainWindow(QMainWindow):
         self.closeClientStopButton.setDisabled(True)
 
         ###########################################################################
+
+    def resetAllSlotsButtonClicked(self, buttonStatus):
+        if buttonStatus:
+            self.resetAllSlotsButton.setDisabled(True)
+            self.resetAllSlotsButton.setText("Working...")
+
+            thread = threading.Thread(target = self.resetAllSlotStatus)
+            thread.start()
+        else:
+            self.resetAllSlotsButton.setText("RESET ALL SLOTS WORKING STATUS")
+            self.resetAllSlotsButton.setEnabled(True)
+
+    def resetAllSlotStatus(self):
+        for slotNumber in range(1, 61):
+            regPath = f"SOFTWARE\WOW6432Node\SageUserData\slot_run_states\slot{slotNumber}"
+            while True:
+                try:
+                    with winreg.OpenKey(self.reg, regPath, 0, winreg.KEY_SET_VALUE) as regKey:
+                        winreg.SetValueEx(regKey, 'runStatus', 0, winreg.REG_SZ, '0')
+                    break
+                except:
+                    time.sleep(3)
+
+        self.resetAllSlotsButton.setText("DONE")
+        time.sleep(2)
+        self.resetAllSlotsButtonClicked(False)
+
 
     def updateAlquimyTimer(self):
         minutes = self.alquimyRemainingSecondsTemp // 60
@@ -129,8 +167,8 @@ class MainWindow(QMainWindow):
                 self.alquimyMinutes.setText(f'{self.minutesText} minute repeat')
                 self.alquimyMinutes.setDisabled(True)
                 self.alquimyStartButton.setStyleSheet("color: green;")
+                self.runExe('alquimyAutoStart.exe')
                 self.startTimerAlquimy(minutes)
-                self.runAlquimy()
         else:
             QMessageBox.warning(self, "Invalid Input", "Please enter a valid integer value for minutes.")
 
@@ -153,8 +191,8 @@ class MainWindow(QMainWindow):
                 self.closeClientMinutes.setText(f'{self.minutesText} minute repeat')
                 self.closeClientMinutes.setDisabled(True)
                 self.closeClientStartButton.setStyleSheet("color: green;")
+                self.runExe('closeClient.exe')
                 self.startTimerCloseClient(minutes)
-                self.runCloseClient()
         else:
             QMessageBox.warning(self, "Invalid Input", "Please enter a valid integer value for minutes.")
 
@@ -168,22 +206,22 @@ class MainWindow(QMainWindow):
         self.closeClientStartButton.setStyleSheet("")
 
     def startShuffleCharacters(self):
-        self.runShuffleCharacters()
+        self.runExe('shuffleCharacters.exe')
 
     def startEventRandomSetup(self):
-        self.runEventRandomSetup()
+        self.runExe('randomSetupEvent.exe')
     
     def startCheckLogs(self):
         self.checkLogsStartButton.setDisabled(True)
         self.checkLogsStartButton.setText('Check Logs (Running)')
         self.checkLogsStartButton.setStyleSheet("color: green;")
-        self.runStartCheckLogs()
+        self.runExe('checkLogs.exe')
         QTimer.singleShot(10000, lambda: self.startTimerCheckLogs(3000))
 
     def startCorNames(self):
-        self.runCorNames()
+        self.runExe('corNames.exe')
 
-    def stopCheckLogs(self):
+    def stopCheckLogsTimer(self):
         self.stopTimerCheckLogs()
         self.checkLogsStartButton.setEnabled(True)
         self.checkLogsStartButton.setText('Check Logs')
@@ -191,9 +229,9 @@ class MainWindow(QMainWindow):
 
     def startTimerAlquimy(self, minutes):
         self.timerAlquimy.start(minutes * 60 * 1000)
+        self.alquimyRemainingSecondsTimer.start(1000)
         self.alquimyRemainingSeconds = minutes * 60
         self.alquimyRemainingSecondsTemp = minutes * 60
-        self.alquimyRemainingSecondsTimer.start(1000)
 
     def stopTimerAlquimy(self):
         self.timerAlquimy.stop()
@@ -201,9 +239,9 @@ class MainWindow(QMainWindow):
 
     def startTimerCloseClient(self, minutes):
         self.timerCloseClient.start(minutes * 60 * 1000)
+        self.closeClientRemainingSecondsTimer.start(1000)
         self.closeClientRemainingSeconds = minutes * 60
         self.closeClientRemainingSecondsTemp = minutes * 60
-        self.closeClientRemainingSecondsTimer.start(1000)
 
     def stopTimerCloseClient(self):
         self.timerCloseClient.stop()
@@ -215,63 +253,19 @@ class MainWindow(QMainWindow):
     def stopTimerCheckLogs(self):
         self.timerCheckLogs.stop()
 
-    def runAlquimy(self):
-        shell = ctypes.windll.shell32.IsUserAnAdmin()
-        if shell:
-            subprocess.Popen(["alquimyAutoStart.exe"], shell=True)
-        else:
-            ctypes.windll.shell32.ShellExecuteW(None, "runas", "alquimyAutoStart.exe", None, None, 1)
-
-    def runCloseClient(self):
-        shell = ctypes.windll.shell32.IsUserAnAdmin()
-        if shell:
-            subprocess.Popen(["closeClient.exe"], shell=True)
-        else:
-            ctypes.windll.shell32.ShellExecuteW(None, "runas", "closeClient.exe", None, None, 1)
-
-    def runShuffleCharacters(self):
-        shell = ctypes.windll.shell32.IsUserAnAdmin()
-        if shell:
-            subprocess.Popen(["shuffleCharacters.exe"], shell=True)
-        else:
-            ctypes.windll.shell32.ShellExecuteW(None, "runas", "shuffleCharacters.exe", None, None, 1)
-
-    def runEventRandomSetup(self):
-        shell = ctypes.windll.shell32.IsUserAnAdmin()
-        if shell:
-            subprocess.Popen(["randomSetupEvent.exe"], shell=True)
-        else:
-            ctypes.windll.shell32.ShellExecuteW(None, "runas", "randomSetupEvent.exe", None, None, 1)
-    
-    def runStartCheckLogs(self):
-        shell = ctypes.windll.shell32.IsUserAnAdmin()
-        if shell:
-            subprocess.Popen(["checkLogs.exe"], shell=True)
-        else:
-            ctypes.windll.shell32.ShellExecuteW(None, "runas", "checkLogs.exe", None, None, 1)
-
-    def runCorNames(self):
-        shell = ctypes.windll.shell32.IsUserAnAdmin()
-        if shell:
-            subprocess.Popen(["corNames.exe"], shell=True)
-        else:
-            ctypes.windll.shell32.ShellExecuteW(None, "runas", "corNames.exe", None, None, 1)
+    def runExe(self, programName):
+        ctypes.windll.shell32.ShellExecuteW(None, "runas", f"{programName}", None, None, 1)
 
     def runCheckLogsControl(self):
         allProcesses = psutil.process_iter(attrs=['name'])
-
-        runStatus = 0
 
         for process in allProcesses:
             processName = process.info['name']
 
             if processName.lower() == 'checkLogs.exe'.lower():
-                try:
-                    runStatus = 1
-                except psutil.NoSuchProcess:
-                    pass
-        if runStatus == 0:
-            self.stopCheckLogs()
+                return
+    
+        self.stopCheckLogsTimer()
 
     def closeEvent(self, event):
         allProcesses = psutil.process_iter(attrs=['pid', 'name'])
@@ -281,10 +275,8 @@ class MainWindow(QMainWindow):
 
             if processName.lower() == 'checkLogs.exe'.lower():
                 processPid = process.info['pid']
-                try:
-                    psutil.Process(processPid).terminate()
-                except psutil.NoSuchProcess:
-                    pass
+                psutil.Process(processPid).terminate()
+  
         super().closeEvent(event)
 
 if __name__ == "__main__":
