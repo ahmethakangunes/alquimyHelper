@@ -15,7 +15,7 @@ class Patcher:
         self.data = {
             'username': 'xxx',
             'password': 'xxx',
-            'version': '2.3',
+            'version': '2.4',
         }
 
     def calculateHash(self, filePath):
