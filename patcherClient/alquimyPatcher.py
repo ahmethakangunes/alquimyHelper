@@ -35,7 +35,7 @@ class Patcher:
             processName = process.info['name']
             processPid = process.info['pid']
 
-            if processName.lower() == f'{programName}.exe'.lower():
+            if processName.lower() == f'{programName}'.lower():
                 psutil.Process(processPid).terminate()
 
 
